@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flag Master — The Ultimate Flag Quiz</title>
+    <meta name="description" content="Test your knowledge of world flags across all continents. Classic, Sprint, and Type modes available.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <!-- Animated background orbs -->
+    <div class="bg-animation">
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+    </div>
+
+    <div class="container">
+        <!-- ===== MENU SCREEN ===== -->
+        <div id="menu-screen">
+            <h1>Flag Master</h1>
+            <p class="subtitle">Test your world knowledge</p>
+
+            <div class="menu-section">
+                <h3>🌍 Select Continent</h3>
+                <select id="continent-select">
+                    <option value="All">All Over the World</option>
+                    <option value="Asia">Asia</option>
+                    <option value="Europe">Europe</option>
+                    <option value="Africa">Africa</option>
+                    <option value="Americas">Americas</option>
+                    <option value="Oceania">Oceania</option>
+                </select>
+            </div>
+
+            <div class="menu-section">
+                <h3>⏱️ Sprint Duration</h3>
+                <select id="time-select">
+                    <option value="15">15 Seconds — Lightning</option>
+                    <option value="30" selected>30 Seconds — Standard</option>
+                    <option value="60">60 Seconds — Extended</option>
+                    <option value="120">2 Minutes — Marathon</option>
+                </select>
+            </div>
+
+            <div class="menu-section">
+                <h3>🎮 Choose Mode</h3>
+                <button class="mode-btn" id="btn-classic" onclick="initGame('classic')">
+                    <span class="mode-icon">🎯</span>
+                    <span>Classic Mode</span>
+                </button>
+                <button class="mode-btn" id="btn-sprint" onclick="initGame('timer')">
+                    <span class="mode-icon">⚡</span>
+                    <span>Sprint Mode</span>
+                </button>
+                <button class="mode-btn" id="btn-type" onclick="initGame('type')">
+                    <span class="mode-icon">⌨️</span>
+                    <span>Type Mode</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== GAME SCREEN ===== -->
+        <div id="game-screen" class="hidden">
+            <div class="game-header">
+                <div id="timer-box">Mode: Classic</div>
+                <div id="score-box">
+                    Score: <span id="score-val">0</span>
+                    <span id="streak-badge" class="streak-badge" style="display:none;">🔥 <span id="streak-val">0</span></span>
+                </div>
+            </div>
+
+            <div id="timer-progress" class="progress-container" style="display:none;">
+                <div id="progress-bar"></div>
+            </div>
+
+            <div class="card">
+                <img id="flag-img" src="" alt="Country Flag">
+                <div id="options-grid" class="btn-grid"></div>
+            </div>
+
+            <button class="quit-btn" id="btn-quit" onclick="quitGame()">✕ Quit</button>
+        </div>
+
+        <!-- ===== RESULT SCREEN ===== -->
+        <div id="result-screen" class="hidden">
+            <h2>Game Over!</h2>
+
+            <div class="result-card">
+                <div class="big-score" id="big-score-val">0</div>
+                <div class="score-label">Flags Identified</div>
+
+                <div id="final-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Correct Answers</span>
+                        <span class="stat-value" id="stat-correct">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Wrong Answers</span>
+                        <span class="stat-value" id="stat-wrong" style="color: var(--red);">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Best Streak</span>
+                        <span class="stat-value" id="stat-streak" style="color: #ffa500;">0 🔥</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Accuracy</span>
+                        <span class="stat-value" id="stat-accuracy">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="mode-btn" id="btn-restart" onclick="location.reload()" style="margin-top:16px;">
+                <span class="mode-icon">🏠</span>
+                <span>Back to Menu</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ===== STATE =====
+        let score = 0;
+        let wrong = 0;
+        let total = 0;
+        let streak = 0;
+        let bestStreak = 0;
+        let gameMode = "";
+        let selectedContinent = "";
+        let timeLeft = 30;
+        let totalTime = 30;
+        let timerInterval;
+        let isAnswering = false;
+
+        // ===== SCREENS =====
+        const screens = {
+            menu: document.getElementById('menu-screen'),
+            game: document.getElementById('game-screen'),
+            result: document.getElementById('result-screen')
+        };
+
+        function showScreen(name) {
+            Object.values(screens).forEach(s => s.classList.add('hidden'));
+            screens[name].classList.remove('hidden');
+            // Re-trigger animation
+            screens[name].style.animation = 'none';
+            screens[name].offsetHeight; // reflow
+            screens[name].style.animation = '';
+        }
+
+        // ===== INIT GAME =====
+        function initGame(mode) {
+            gameMode = mode;
+            selectedContinent = document.getElementById('continent-select').value;
+            score = 0;
+            wrong = 0;
+            total = 0;
+            streak = 0;
+            bestStreak = 0;
+            isAnswering = false;
+
+            document.getElementById('score-val').textContent = '0';
+            document.getElementById('streak-badge').style.display = 'none';
+
+            showScreen('game');
+
+            const timerBox = document.getElementById('timer-box');
+            const progressContainer = document.getElementById('timer-progress');
+
+            if (mode === 'timer') {
+                totalTime = parseInt(document.getElementById('time-select').value) || 30;
+                timeLeft = totalTime;
+                timerBox.textContent = `⏱ ${timeLeft}s`;
+                progressContainer.style.display = 'block';
+                document.getElementById('progress-bar').style.width = '100%';
+                startTimer();
+            } else if (mode === 'type') {
+                timerBox.innerHTML = '⌨️ Type Mode';
+                progressContainer.style.display = 'none';
+            } else {
+                timerBox.innerHTML = '🎯 Classic';
+                progressContainer.style.display = 'none';
+            }
+
+            loadNext();
+        }
+
+        // ===== TIMER =====
+        function startTimer() {
+            const timerBox = document.getElementById('timer-box');
+            const progressBar = document.getElementById('progress-bar');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerBox.textContent = `⏱ ${timeLeft}s`;
+
+                const pct = (timeLeft / totalTime) * 100;
+                progressBar.style.width = pct + '%';
+
+                if (timeLeft <= 5) {
+                    timerBox.classList.add('warning');
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    showResults();
+                }
+            }, 1000);
+        }
+
+        // ===== LOAD QUESTION =====
+        async function loadNext() {
+            isAnswering = false;
+
+            try {
+                const res = await fetch(`/get_question?continent=${selectedContinent}`);
+                const data = await res.json();
+
+                const flagImg = document.getElementById('flag-img');
+                flagImg.style.animation = 'none';
+                flagImg.offsetHeight;
+                flagImg.style.animation = '';
+                flagImg.src = data.flag;
+
+                const grid = document.getElementById('options-grid');
+                grid.innerHTML = "";
+
+                if (gameMode === 'type') {
+                    // Type mode — show input field
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = 'type-input';
+                    input.placeholder = 'Type the country name...';
+                    input.autocomplete = 'off';
+                    input.spellcheck = false;
+
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !isAnswering) {
+                            isAnswering = true;
+                            const guess = input.value.trim().toLowerCase();
+                            const answer = data.answer.toLowerCase();
+                            total++;
+
+                            if (guess === answer) {
+                                score++;
+                                streak++;
+                                if (streak > bestStreak) bestStreak = streak;
+                                input.style.borderColor = 'var(--green)';
+                                input.style.boxShadow = '0 0 24px var(--green-glow)';
+                                updateScoreUI();
+                                spawnConfetti(3);
+                            } else {
+                                wrong++;
+                                streak = 0;
+                                input.style.borderColor = 'var(--red)';
+                                input.style.boxShadow = '0 0 24px var(--red-glow)';
+                                input.value = data.answer;
+                                updateScoreUI();
+                            }
+
+                            setTimeout(loadNext, 800);
+                        }
+                    });
+
+                    grid.style.gridTemplateColumns = '1fr';
+                    grid.appendChild(input);
+                    setTimeout(() => input.focus(), 100);
+                } else {
+                    // Classic / Sprint mode — show buttons
+                    grid.style.gridTemplateColumns = '1fr 1fr';
+
+                    data.options.forEach((opt, i) => {
+                        const btn = document.createElement('button');
+                        btn.className = "btn";
+                        btn.textContent = opt;
+                        btn.style.animationDelay = `${i * 0.05}s`;
+
+                        btn.onclick = () => {
+                            if (isAnswering) return;
+                            isAnswering = true;
+                            total++;
+
+                            // Disable all buttons
+                            const allBtns = grid.querySelectorAll('.btn');
+
+                            if (opt === data.answer) {
+                                score++;
+                                streak++;
+                                if (streak > bestStreak) bestStreak = streak;
+                                btn.classList.add('correct');
+                                spawnConfetti(5);
+                            } else {
+                                wrong++;
+                                streak = 0;
+                                btn.classList.add('wrong');
+                                // Highlight correct answer
+                                allBtns.forEach(b => {
+                                    if (b.textContent === data.answer) b.classList.add('correct');
+                                });
+                            }
+
+                            allBtns.forEach(b => b.style.pointerEvents = 'none');
+                            updateScoreUI();
+                            setTimeout(loadNext, 700);
+                        };
+
+                        grid.appendChild(btn);
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to load question:', err);
+            }
+        }
+
+        // ===== UPDATE SCORE UI =====
+        function updateScoreUI() {
+            document.getElementById('score-val').textContent = score;
+            const badge = document.getElementById('streak-badge');
+            const streakVal = document.getElementById('streak-val');
+
+            if (streak >= 2) {
+                badge.style.display = 'inline-flex';
+                streakVal.textContent = streak;
+                badge.style.animation = 'none';
+                badge.offsetHeight;
+                badge.style.animation = '';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // ===== CONFETTI =====
+        function spawnConfetti(count) {
+            const colors = ['#6c5ce7', '#a29bfe', '#fd79a8', '#00cec9', '#ffa500', '#ff6b6b'];
+            for (let i = 0; i < count; i++) {
+                const el = document.createElement('div');
+                el.className = 'confetti';
+                el.style.left = (Math.random() * 100) + 'vw';
+                el.style.top = '-10px';
+                el.style.background = colors[Math.floor(Math.random() * colors.length)];
+                el.style.width = (6 + Math.random() * 8) + 'px';
+                el.style.height = (6 + Math.random() * 8) + 'px';
+                el.style.animationDuration = (1 + Math.random() * 1.5) + 's';
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 2500);
+            }
+        }
+
+        // ===== QUIT =====
+        function quitGame() {
+            clearInterval(timerInterval);
+            showResults();
+        }
+
+        // ===== RESULTS =====
+        function showResults() {
+            clearInterval(timerInterval);
+            showScreen('result');
+
+            // Animate big score
+            const bigScore = document.getElementById('big-score-val');
+            let current = 0;
+            const step = Math.max(1, Math.floor(score / 30));
+            const counter = setInterval(() => {
+                current += step;
+                if (current >= score) {
+                    current = score;
+                    clearInterval(counter);
+                }
+                bigScore.textContent = current;
+            }, 30);
+
+            document.getElementById('stat-correct').textContent = score;
+            document.getElementById('stat-wrong').textContent = wrong;
+            document.getElementById('stat-streak').textContent = bestStreak + ' 🔥';
+
+            const acc = total > 0 ? Math.round((score / total) * 100) : 0;
+            document.getElementById('stat-accuracy').textContent = acc + '%';
+
+            // Celebration confetti
+            if (score >= 5) {
+                for (let i = 0; i < 30; i++) {
+                    setTimeout(() => spawnConfetti(3), i * 80);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
